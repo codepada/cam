@@ -1,0 +1,22 @@
+{
+  "name": "My PWA Camera",
+  "short_name": "Camera",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "description": "A simple camera PWA.",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+    // เพิ่มไอคอนขนาดอื่นๆ ที่จำเป็น
+  ]
+}
