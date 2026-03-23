@@ -1,34 +1,368 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>My PWA Camera</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Camera">
-    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
-    <meta name="theme-color" content="#000000">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Camera Overlay</title>
+  <style>
+    :root {
+      --panel-bg: rgba(0, 0, 0, 0.55);
+      --btn-bg: rgba(255, 255, 255, 0.14);
+      --btn-border: rgba(255, 255, 255, 0.18);
+      --text: #fff;
+      --accent: #6ee7ff;
+      --danger: #ff7b7b;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: manipulation;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      background: #000;
+    }
+
+    #videoWrap {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #camera,
+    #overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform-origin: center center;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    #camera {
+      background: #000;
+    }
+
+    #overlay {
+      pointer-events: none;
+      display: none;
+    }
+
+    #topBar {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .pill {
+      pointer-events: auto;
+      color: var(--text);
+      background: var(--panel-bg);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 14px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    #controls {
+      position: absolute;
+      left: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 30;
+      display: grid;
+      gap: 10px;
+      width: min(240px, calc(100vw - 24px));
+      padding: 12px;
+      background: var(--panel-bg);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button, label.buttonLike {
+      appearance: none;
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 11px 12px;
+      font-size: 14px;
+      line-height: 1.2;
+      text-align: center;
+      cursor: pointer;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button:active, label.buttonLike:active {
+      transform: scale(0.98);
+    }
+
+    button.active {
+      outline: 2px solid rgba(110, 231, 255, 0.35);
+      background: rgba(110, 231, 255, 0.18);
+    }
+
+    button.warn {
+      background: rgba(255, 123, 123, 0.15);
+    }
+
+    .full {
+      width: 100%;
+    }
+
+    .miniText {
+      color: rgba(255,255,255,0.78);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    #errorBox {
+      position: absolute;
+      inset: auto 12px calc(max(140px, env(safe-area-inset-bottom) + 130px)) 12px;
+      z-index: 25;
+      color: white;
+      background: rgba(120, 0, 0, 0.75);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: none;
+      white-space: pre-wrap;
+    }
+
+    #hiddenFile {
+      display: none;
+    }
+
+    .rangeWrap {
+      display: grid;
+      gap: 6px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    @media (min-width: 900px) {
+      #controls {
+        width: 280px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="camera-container">
-        <video id="cameraFeed" autoplay playsinline></video>
-        <canvas id="photoCanvas" style="display:none;"></canvas>
-
-        <div class="controls-overlay">
-            <button id="galleryButton" class="control-button bottom-left">
-                <input type="file" id="imageInput" accept="image/*" style="display: none;">
-                <img id="galleryPreview" src="icons/gallery-placeholder.png" alt="Gallery">
-            </button>
-
-            <button id="takePhotoButton" class="control-button bottom-center"></button>
-
-            <input type="range" id="zoomSlider" min="1" max="10" value="1" step="0.1" class="zoom-slider">
-        </div>
+  <div id="app">
+    <div id="videoWrap">
+      <video id="camera" autoplay playsinline muted></video>
+      <img id="overlay" alt="overlay" />
     </div>
 
-    <script src="script.js"></script>
+    <div id="topBar">
+      <div class="pill" id="cameraState">กำลังเตรียมกล้อง...</div>
+      <div class="pill" id="zoomState">Zoom 1.0x</div>
+    </div>
+
+    <div id="errorBox"></div>
+
+    <div id="controls">
+      <div class="row">
+        <label class="buttonLike" for="hiddenFile">เลือกรูป</label>
+        <button id="toggleOverlayBtn">ซ่อนรูป</button>
+      </div>
+
+      <div class="row">
+        <button id="switchCameraBtn">สลับกล้อง</button>
+        <button id="fitModeBtn">เต็มจอ</button>
+      </div>
+
+      <div class="rangeWrap">
+        <div class="miniText">ปรับขนาดแบบดิจิทัล (ไม่ใช่ซูมเลนส์จริง)</div>
+        <input id="zoomSlider" type="range" min="1" max="3" step="0.01" value="1" />
+      </div>
+
+      <div class="miniText" id="statusText">
+        มุมซ้ายล่างใช้เลือกภาพ เปิด/ปิดภาพซ้อน และสลับกล้องได้
+      </div>
+    </div>
+
+    <input id="hiddenFile" type="file" accept="image/*" />
+  </div>
+
+  <script>
+    const video = document.getElementById('camera');
+    const overlay = document.getElementById('overlay');
+    const hiddenFile = document.getElementById('hiddenFile');
+    const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
+    const switchCameraBtn = document.getElementById('switchCameraBtn');
+    const fitModeBtn = document.getElementById('fitModeBtn');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const cameraState = document.getElementById('cameraState');
+    const zoomState = document.getElementById('zoomState');
+    const errorBox = document.getElementById('errorBox');
+    const statusText = document.getElementById('statusText');
+
+    let stream = null;
+    let currentFacingMode = 'environment';
+    let overlayVisible = true;
+    let fillMode = true;
+    let currentZoom = 1;
+    let currentImageUrl = null;
+
+    function setError(message) {
+      errorBox.style.display = message ? 'block' : 'none';
+      errorBox.textContent = message || '';
+    }
+
+    function updateOverlayButton() {
+      toggleOverlayBtn.textContent = overlayVisible ? 'ซ่อนรูป' : 'แสดงรูป';
+      toggleOverlayBtn.classList.toggle('active', overlayVisible);
+      const hasImage = !!overlay.src;
+      overlay.style.display = hasImage && overlayVisible ? 'block' : 'none';
+    }
+
+    function updateZoom() {
+      const transform = `scale(${currentZoom})`;
+      video.style.transform = transform;
+      overlay.style.transform = transform;
+      zoomState.textContent = `Zoom ${currentZoom.toFixed(1)}x`;
+    }
+
+    function updateFitMode() {
+      const mode = fillMode ? 'cover' : 'contain';
+      video.style.objectFit = mode;
+      overlay.style.objectFit = mode;
+      fitModeBtn.textContent = fillMode ? 'เต็มจอ' : 'พอดีภาพ';
+      fitModeBtn.classList.toggle('active', fillMode);
+    }
+
+    function stopCurrentStream() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+    }
+
+    async function startCamera() {
+      setError('');
+      cameraState.textContent = 'กำลังเปิดกล้อง...';
+      stopCurrentStream();
+
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: currentFacingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings ? track.getSettings() : {};
+        const label = track.label || (currentFacingMode === 'environment' ? 'กล้องหลัง' : 'กล้องหน้า');
+        cameraState.textContent = label;
+
+        if (settings.facingMode) {
+          currentFacingMode = settings.facingMode;
+        }
+
+        statusText.textContent = 'เปิดกล้องแล้ว สามารถเลือกรูปแล้วแสดงทับบนภาพกล้องได้';
+      } catch (err) {
+        console.error(err);
+        cameraState.textContent = 'เปิดกล้องไม่สำเร็จ';
+        setError(
+          'ไม่สามารถเปิดกล้องได้\n\n' +
+          'สาเหตุที่พบบ่อย:\n' +
+          '1) ยังไม่ได้อนุญาตสิทธิ์กล้อง\n' +
+          '2) เปิดไฟล์แบบ local แล้ว browser จำกัดสิทธิ์\n' +
+          '3) ต้องเปิดผ่าน https หรือ localhost\n\n' +
+          'รายละเอียด: ' + (err.message || err)
+        );
+      }
+    }
+
+    hiddenFile.addEventListener('change', (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      if (currentImageUrl) {
+        URL.revokeObjectURL(currentImageUrl);
+      }
+
+      currentImageUrl = URL.createObjectURL(file);
+      overlay.src = currentImageUrl;
+      overlayVisible = true;
+      updateOverlayButton();
+      statusText.textContent = `เลือกรูปแล้ว: ${file.name}`;
+    });
+
+    toggleOverlayBtn.addEventListener('click', () => {
+      overlayVisible = !overlayVisible;
+      updateOverlayButton();
+    });
+
+    switchCameraBtn.addEventListener('click', async () => {
+      currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      await startCamera();
+    });
+
+    fitModeBtn.addEventListener('click', () => {
+      fillMode = !fillMode;
+      updateFitMode();
+    });
+
+    zoomSlider.addEventListener('input', (e) => {
+      currentZoom = Number(e.target.value || 1);
+      updateZoom();
+    });
+
+    document.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      currentZoom = currentZoom < 2 ? 2 : 1;
+      zoomSlider.value = currentZoom;
+      updateZoom();
+    }, { passive: false });
+
+    updateOverlayButton();
+    updateFitMode();
+    updateZoom();
+    startCamera();
+  </script>
 </body>
 </html>
